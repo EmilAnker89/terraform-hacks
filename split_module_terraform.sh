@@ -163,3 +163,35 @@ terraform state list
 
 
 ```
+
+# Move resources from a master project to separate new projects
+```
+pwd
+# ~/Infrastructure/Infra-DevOps/terraform/env-test/virtualmachines
+# Create provider configuration and remote backend config in ./arch
+terraform state pull > arch/terraform.tfstate
+cd arch
+terraform init #yes - import state from local
+# now remove all of the stuff not managed by the arch project
+terraform state rm module.pgw module.pgw.module.vm_i module.pgw.module.vm_p
+terraform state rm module.dot module.dot.module.dot_1
+terraform state rm module.test
+terraform state rm module.coinroutes module.coinroutes.module.ays module.coinroutes.module.rsg module.coinroutes.module.subnet
+# apparently the single quotes are important!
+terraform state rm 'module.coinroutes.module.server[0]'
+terraform state rm 'module.cusa' 'module.cusa.module.vm_i' 'module.cusa.module.vm_p'
+terraform state rm 'module.core' 'module.core.module.vm_i' 'module.core.module.vm_p' 'module.core.module.rsg'
+
+# and move the arch stuff to their new location (not wrapped in a module):
+terraform state mv 'module.arch.data.azurerm_route_table.main' 'data.azurerm_route_table.main'
+terraform state mv 'module.arch.data.azurerm_virtual_network.vnet' 'data.azurerm_virtual_network.vnet'
+terraform state mv 'module.arch.azurerm_role_assignment.main' 'azurerm_role_assignment.main'
+terraform state mv 'module.arch.module.rsg' 'module.rsg'
+terraform state mv 'module.arch.module.vm_i' 'module.vm_i'
+
+cd ..
+terraform state rm 'module.arch' 'module.arch.module.vm_i' 'module.arch.module.rsg'
+
+# comment out the code defining the arch project resources in the original project.
+
+``` 
