@@ -173,10 +173,10 @@ terraform state pull > arch/terraform.tfstate
 cd arch
 terraform init #yes - import state from local
 # now remove all of the stuff not managed by the arch project
+terraform state rm module.test
 terraform state rm module.pgw module.pgw.module.vm_i module.pgw.module.vm_p
 terraform state rm module.dot module.dot.module.dot_1
-terraform state rm module.test
-terraform state rm module.coinroutes module.coinroutes.module.ays module.coinroutes.module.rsg module.coinroutes.module.subnet
+terraform state rm 'module.coinroutes' 'module.coinroutes.module.ays' 'module.coinroutes.module.rsg' 'module.coinroutes.module.subnet'
 # apparently the single quotes are important!
 terraform state rm 'module.coinroutes.module.server[0]'
 terraform state rm 'module.cusa' 'module.cusa.module.vm_i' 'module.cusa.module.vm_p'
@@ -195,3 +195,59 @@ terraform state rm 'module.arch' 'module.arch.module.vm_i' 'module.arch.module.r
 # comment out the code defining the arch project resources in the original project.
 
 ``` 
+
+# then move test
+```
+pwd
+# ~/Infrastructure/Infra-DevOps/terraform/env-test/virtualmachines
+# Create provider configuration and remote backend config in ./test
+terraform state pull > test/terraform.tfstate
+cd test
+terraform init #yes - import state from local
+# now remove all of the stuff not managed by the arch project
+# apparently the single quotes are important!
+
+terraform state rm 'module.pgw' 'module.pgw.module.vm_i' 'module.pgw.module.vm_p'
+terraform state rm 'module.cusa' 'module.cusa.module.vm_i' 'module.cusa.module.vm_p'
+terraform state rm 'module.dot' 'module.dot.module.dot_1'
+terraform state rm 'module.coinroutes' 'module.coinroutes.module.ays' 'module.coinroutes.module.rsg' 'module.coinroutes.module.subnet'
+terraform state rm 'module.coinroutes.module.server[0]'
+terraform state rm 'module.core' 'module.core.module.vm_i' 'module.core.module.vm_p' 'module.core.module.rsg'
+
+terraform state list
+# and move the arch stuff to their new location (not wrapped in a module):
+terraform state mv 'module.test.data.terraform_remote_state.applications' 'data.terraform_remote_state.applications'
+terraform state mv 'module.test.azurerm_resource_group.main' 'azurerm_resource_group.main'
+terraform init
+terraform plan -var-file=../shared.tfvars
+
+cd ..
+terraform state rm 'module.test.data.terraform_remote_state.applications' 'module.test.azurerm_resource_group.main'
+
+# comment out the code defining the arch project resources in the original project.
+
+``` 
+
+```bash
+terraform init
+terraform state pull > terraform.tfstate
+ROOT_MODULES=($(cat terraform.tfstate | jq '.resources[] | select(.module|test("module\\..*\\.module")|not) | .module' | jq -rs '. | unique[]'))
+for MODULE in ${ROOT_MODULES[@]}; do
+  echo "The module name is ${MODULE}"
+  DIR=$(echo $MODULE | sed 's/module\.//')
+#  OBJECTS=($(terraform state list -state=terraform.tfstate | grep ^$MODULE | sed 's/\[.*\]//'))
+  OBJECTS=($(terraform state list -state=terraform.tfstate | grep ^$MODULE))
+  for OBJ in ${OBJECTS[@]}; do
+    RES=$(echo $OBJ | sed "s/^${MODULE}\.//")
+    echo "$RES iteration"
+    terraform state mv -state=terraform.tfstate -state-out=$DIR/terraform.tfstate "$OBJ" "$RES"
+    (cd $DIR && terraform state show $RES)
+  done
+# terraform state rm ${OBJECTS[@]}
+done
+
+# After the config has been updated etc. run terraform init in all of the subdirectories.
+# Will ask you to approve that you want to copy the local terraform state to the remote state if configured.
+# need to remove all of the resources from the 
+
+```
